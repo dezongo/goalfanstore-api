@@ -66,7 +66,7 @@ if (GMAIL_APP_PASSWORD) {
   transporter.verify(function(error) {
     if (error) {
       console.log('⚠️  Email: Configuration invalide -', error.message);
-      transporter = null;
+      // transporter reste actif malgré l'erreur verify (normal sur Render free tier)
     } else {
       console.log('✅ Email: Prêt à envoyer via', GMAIL_USER);
     }
