@@ -61,7 +61,10 @@ if (GMAIL_APP_PASSWORD) {
     auth: {
       user: GMAIL_USER,
       pass: GMAIL_APP_PASSWORD
-    }
+    },
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000
   });
   transporter.verify(function(error) {
     if (error) {
@@ -73,6 +76,22 @@ if (GMAIL_APP_PASSWORD) {
   });
 } else {
   console.log('⚠️  Email: GMAIL_APP_PASSWORD non configuré');
+}
+
+// Fonction utilitaire : envoyer un email avec timeout
+function sendEmailWithTimeout(mailOptions, timeoutMs) {
+  return new Promise(function(resolve, reject) {
+    var timer = setTimeout(function() {
+      reject(new Error('Email timeout après ' + timeoutMs + 'ms'));
+    }, timeoutMs);
+    transporter.sendMail(mailOptions).then(function(info) {
+      clearTimeout(timer);
+      resolve(info);
+    }).catch(function(err) {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
 }
 
 // ============ DEVISES SUPPORTÉES PAR STRIPE ============
@@ -179,15 +198,18 @@ app.post('/api/create-payment-intent', async function(req, res) {
 
 // ============ ROUTE : NOTIFICATION DE COMMANDE PAR EMAIL ============
 
-app.post('/api/notify-order', async function(req, res) {
-  try {
-    const order = req.body;
-    console.log(`📧 Notification commande: ${order.orderId} - ${order.customerName} (${order.total})`);
+app.post('/api/notify-order', function(req, res) {
+  var order = req.body;
+    console.log('📧 Notification commande: ' + (order.orderId || 'N/A') + ' - ' + (order.customerName || '') + ' (' + (order.total || '') + ')');
 
-    if (!transporter) {
-      console.log('⚠️  Email non envoyé (transporter non configuré)');
-      return res.json({ success: true, emailSent: false, reason: 'Email non configuré' });
-    }
+  // Répondre IMMÉDIATEMENT au client - ne jamais bloquer
+  res.json({ success: true, emailSent: 'pending', message: 'Commande enregistrée, email en cours d\'envoi' });
+
+  // Envoyer l'email en arrière-plan (fire-and-forget)
+  if (!transporter) {
+    console.log('⚠️  Email non envoyé (transporter non configuré)');
+    return;
+  }
 
     // Construire la liste des articles en HTML
     const itemsHtml = (order.items || []).map(function(item) {
@@ -248,20 +270,19 @@ app.post('/api/notify-order', async function(req, res) {
       </div>
     `;
 
-    await transporter.sendMail({
-      from: '"Goal Fan Store" <' + GMAIL_USER + '>',
-      to: GMAIL_USER,
-      subject: '🛒 Nouvelle commande ' + (order.orderId || '') + ' - ' + (order.customerName || '') + ' (' + (order.total || '') + ')',
-      html: emailHtml
-    });
+    var mailOptions = {
+    from: '"Goal Fan Store" <' + GMAIL_USER + '>',
+    to: GMAIL_USER,
+    subject: '🛒 Nouvelle commande ' + (order.orderId || '') + ' - ' + (order.customerName || '') + ' (' + (order.total || '') + ')',
+    html: emailHtml
+  };
 
-    console.log('✅ Email de notification envoyé');
-    res.json({ success: true, emailSent: true });
-
-  } catch (error) {
-    console.error('❌ Erreur notification:', error.message);
-    res.json({ success: true, emailSent: false, reason: error.message });
-  }
+  // Envoyer avec timeout de 20 secondes
+  sendEmailWithTimeout(mailOptions, 20000).then(function() {
+    console.log('✅ Email de notification envoyé pour ' + (order.orderId || 'N/A'));
+  }).catch(function(err) {
+    console.log('⚠️  Email non envoyé pour ' + (order.orderId || 'N/A') + ': ' + err.message);
+  });
 });
 
 // ============ DÉMARRAGE ============
