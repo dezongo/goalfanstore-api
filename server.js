@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 3001;
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const STORE_EMAIL = process.env.STORE_EMAIL || 'goalfanstore@gmail.com';
-const FROM_EMAIL = process.env.FROM_EMAIL || 'Goal Fan Store <onboarding@resend.dev>';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'Goal Fan Store <noreply@goalfanstore.com>';
 
 if (!STRIPE_SECRET_KEY) {
   console.error('ERREUR FATALE: STRIPE_SECRET_KEY non définie');
